@@ -274,6 +274,7 @@ class TestsForChord(unittest.TestCase):
         test1('A', 'aug', ['P1', 'M3', 'A5'])
         test1('A', 'dom7', ['P1', 'M3', 'P5', 'm7'])
         test1('A', 'dom9', ['P1', 'M3', 'P5', 'm7', 'M9'])
+        test1('C', 'majadd9', ['P1', 'M3', 'P5', 'M9'])
 
     def test_recipes_intervals(self):
         for root in Note.all():
