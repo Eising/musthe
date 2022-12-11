@@ -17,7 +17,7 @@ DESCRIPTION = ' Music theory implemented in Python. Notes, intervals, scales and
 URL = 'https://github.com/gciruelos/musthe'
 EMAIL = ' gonzalo.ciruelos@gmail.com '
 AUTHOR = 'Gonzalo Ciruelos'
-REQUIRES_PYTHON = '>=3.4'
+REQUIRES_PYTHON = '>=3.8'
 VERSION = "1.0.0"
 
 # What packages are required for this module to be executed?
