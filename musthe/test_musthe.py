@@ -275,14 +275,12 @@ class TestsForChord(unittest.TestCase):
         test1('A', 'dom7', ['P1', 'M3', 'P5', 'm7'])
         test1('A', 'dom9', ['P1', 'M3', 'P5', 'm7', 'M9'])
 
-    @unittest.skip('Note.__sub__ is broken')
     def test_recipes_intervals(self):
         for root in Note.all():
             for name, recipe in Chord.recipes.items():
                 chord = Chord(root, name)
                 notes = chord.notes
                 derivedRecipe = [str(n - root) for n in notes]
-                print(derivedRecipe)
                 self.assertEqual(derivedRecipe, recipe)
 
     def test_chord_repr(self):
