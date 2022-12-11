@@ -8,10 +8,26 @@ Federico Ferri <federico.ferri.it@gmail.com>
 """
 
 import re
+from typing import (
+    Any,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Type,
+    TypeVar,
+    Union,
+    overload,
+)
+
+T = TypeVar("T")
 
 
-def UnsupportedOperands(op, type1, type2):
-    def as_type(x):
+def UnsupportedOperands(op: str, type1: object, type2: object) -> Exception:
+    def as_type(x: Union[T, Type[T]]) -> Type[T]:
         return x if isinstance(x, type) else type(x)
 
     fmt = "unsupported operand type(s) for {}: '{}' and '{}'"
@@ -31,22 +47,30 @@ class Letter:
     two letters.
     """
 
-    letters = "CDEFGAB"
-    letters_idx = {x: i for i, x in enumerate(letters)}
-    letters_number = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+    letters: str = "CDEFGAB"
+    letters_idx: Dict[str, int] = {x: i for i, x in enumerate(letters)}
+    letters_number: Dict[str, int] = {
+        "C": 0,
+        "D": 2,
+        "E": 4,
+        "F": 5,
+        "G": 7,
+        "A": 9,
+        "B": 11,
+    }
 
     @staticmethod
-    def all():
+    def all() -> Iterator["Letter"]:
         for name in Letter.letters:
             yield Letter(name)
 
-    def __init__(self, letter):
+    def __init__(self, letter: str) -> None:
         if letter not in self.letters_idx:
             raise ValueError("Invalid letter {!r}".format(letter))
-        self.name = letter
-        self.idx = self.letters_idx[letter]
+        self.name: str = letter
+        self.idx: int = self.letters_idx[letter]
 
-    def __add__(self, other):
+    def __add__(self, other: int) -> "Letter":
         if isinstance(other, int):
             if other == 0:
                 raise ValueError("Invalid interval number: 0")
@@ -55,7 +79,15 @@ class Letter:
         else:
             raise UnsupportedOperands("+", self, other)
 
-    def __sub__(self, other):
+    @overload
+    def __sub__(self, other: "Letter") -> int:
+        """Overload for dunder sub with letter as input."""
+
+    @overload
+    def __sub__(self, other: int) -> "Letter":
+        """Overload for dunder sub with int as input."""
+
+    def __sub__(self, other: Union[int, "Letter"]) -> Union[int, "Letter"]:
         if isinstance(other, Letter):
             d = self.idx - other.idx
             d += 1 if d >= 0 else -1
@@ -65,22 +97,22 @@ class Letter:
         else:
             raise UnsupportedOperands("-", self, other)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "Letter({!r})".format(str(self))
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return str(self) == str(other)
 
-    def number(self):
+    def number(self) -> int:
         return self.letters_number[self.name]
 
-    def has_flat(self):
+    def has_flat(self) -> bool:
         return self.name not in "CF"
 
-    def has_sharp(self):
+    def has_sharp(self) -> bool:
         return self.name not in "EB"
 
 
@@ -100,7 +132,7 @@ class Note:
     pattern = re.compile(r"([A-G])(b{0,3}|#{0,3})(\d{0,1})$")
 
     @staticmethod
-    def all(min_octave=4, max_octave=4):
+    def all(min_octave: int = 4, max_octave: int = 4) -> Iterator["Note"]:
         for octave in range(min_octave, max_octave + 1):
             for letter in Letter.all():
                 letter_accidentals = [""]
@@ -112,16 +144,16 @@ class Note:
                     yield Note("{}{}{:d}".format(letter.name, acc, octave))
 
     @staticmethod
-    def accidental_value(acc):
+    def accidental_value(acc: str) -> int:
         if acc == "":
             return 0
         return {"#": 1, "b": -1}[acc[0]] + Note.accidental_value(acc[1:])
 
     @staticmethod
-    def accidental_str(val):
+    def accidental_str(val: int) -> str:
         return "b" * max(0, -val) + "#" * max(0, val)
 
-    def __init__(self, note):
+    def __init__(self, note: str) -> None:
         m = self.pattern.match(note)
         if m is None:
             raise ValueError("Could not parse the note {!r}".format(note))
@@ -136,7 +168,7 @@ class Note:
             + Note.accidental_value(self.accidental)
         )
 
-    def __add__(self, other):
+    def __add__(self, other: object) -> "Note":
         if isinstance(other, Interval):
             if other.is_compound():
                 from functools import reduce
@@ -159,7 +191,15 @@ class Note:
         else:
             raise UnsupportedOperands("+", self, other)
 
-    def __sub__(self, other):
+    @overload
+    def __sub__(self, other: "Note") -> "Interval":
+        """Overload for dunder sub with Note as input."""
+
+    @overload
+    def __sub__(self, other: "Interval") -> "Note":
+        """Overload for dunder sub with Interval as input."""
+
+    def __sub__(self, other: Union["Note", "Interval"]) -> Union["Note", "Interval"]:
         if isinstance(other, Interval):
             if other.is_compound():
                 from functools import reduce
@@ -185,31 +225,34 @@ class Note:
         else:
             raise UnsupportedOperands("-", self, other)
 
-    def midi_note(self):
+    def midi_note(self) -> int:
         return self.number + 12
 
-    def frequency(self):
+    def frequency(self) -> float:
         from math import pow
 
         return 440.0 * pow(2, (self.number - Note("A4").number) / 12.0)
 
-    def to_octave(self, octave):
+    def to_octave(self, octave: int) -> "Note":
         return Note(self.letter.name + self.accidental + str(octave))
 
-    def lilypond_notation(self):
+    def lilypond_notation(self) -> str:
         return str(self).replace("b", "es").replace("#", "is").lower()
 
-    def scientific_notation(self):
+    def scientific_notation(self) -> str:
         return str(self) + str(self.octave)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "Note({!r})".format(self.scientific_notation())
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.letter.name + self.accidental
 
-    def __eq__(self, other):
-        return self.scientific_notation() == other.scientific_notation()
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Note):
+            return self.scientific_notation() == other.scientific_notation()
+
+        raise UnsupportedOperands("==", self, other)
 
 
 class Interval:
@@ -223,7 +266,7 @@ class Interval:
     For example, 'd8', 'P1', 'A5' are valid intervals. 'P3', '5' are not.
     """
 
-    intervals = {
+    intervals: Dict[str, int] = {
         "d1": -1,
         "P1": 0,
         "A1": 1,
@@ -253,17 +296,17 @@ class Interval:
         "P8": 12,
         "A8": 13,
     }
-    quality_inverse = {"P": "P", "d": "A", "A": "d", "m": "M", "M": "m"}
+    quality_inverse: Dict[str, str] = {"P": "P", "d": "A", "A": "d", "m": "M", "M": "m"}
 
     @staticmethod
-    def all():
+    def all() -> Iterator["Interval"]:
         for name in Interval.intervals:
             yield Interval(name)
 
-    def __init__(self, interval):
-        self.quality = interval[0]
-        self.number = int(interval[1:])
-        self.semitones = 0
+    def __init__(self, interval: str) -> None:
+        self.quality: str = interval[0]
+        self.number: int = int(interval[1:])
+        self.semitones: int = 0
 
         # compound intervals:
         number = self.number
@@ -277,24 +320,28 @@ class Interval:
         except KeyError:
             raise ValueError("Invalid interval {!r}.".format(interval))
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.quality + str(self.number)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "Interval({!r})".format(str(self))
 
-    def __eq__(self, other):
-        return str(self) == str(other)
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Interval):
+            return str(self) == str(other)
+        if isinstance(other, str):
+            return str(self) == other
+        raise UnsupportedOperands("==", self, other)
 
-    def is_compound(self):
+    def is_compound(self) -> bool:
         return self.number > 8
 
-    def split(self):
+    def split(self) -> List["Interval"]:
         """
         Split a compound interval into simple intervals.
         The sum of splitted intervals is equal to the compound interval.
         """
-        ret = []
+        ret: List[Interval] = []
         i = Interval(str(self))
         while i.is_compound():
             i.number -= 7
@@ -303,7 +350,7 @@ class Interval:
         ret.append(i)
         return ret
 
-    def complement(self):
+    def complement(self) -> "Interval":
         """
         Return the complement of this interval also known as inverted interval.
         The sum of this interval plus its complement is equal to 1 octave (P8),
@@ -317,6 +364,9 @@ class Interval:
             return Interval(q + str(n))
 
 
+RootType = Union[Sequence[Note], Note]
+
+
 class Chord:
     """
     The chord class.
@@ -324,7 +374,7 @@ class Chord:
     Contains recipes for common chords.
     """
 
-    recipes = {
+    recipes: Dict[str, List[str]] = {
         "maj": ["P1", "M3", "P5"],
         "min": ["P1", "m3", "P5"],
         "aug": ["P1", "M3", "A5"],
@@ -344,7 +394,7 @@ class Chord:
         "aug9": ["P1", "M3", "A5", "m7", "M9"],
         "dim9": ["P1", "m3", "d5", "d7", "M9"],
     }
-    aliases = {
+    aliases: Dict[str, str] = {
         "M": "maj",
         "m": "min",
         "+": "aug",
@@ -364,10 +414,13 @@ class Chord:
         "+9": "aug9",
         "°9": "dim9",
     }
-    valid_types = list(recipes.keys()) + list(aliases.keys())
+    valid_types: List[str] = list(recipes.keys()) + list(aliases.keys())
 
     @staticmethod
-    def all(min_octave=4, max_octave=4, root=None):
+    def all(
+        min_octave: int = 4, max_octave: int = 4, root: Optional[RootType] = None
+    ) -> Iterator["Chord"]:
+        roots: Union[Iterator[Note], Sequence[Note]]
         if root is None:
             roots = Note.all()
         elif isinstance(root, (list, set, tuple)):
@@ -376,11 +429,11 @@ class Chord:
             roots = [root]
         else:
             raise TypeError("Invalid root type: {}".format(type(root)))
-        for root in roots:
+        for root_note in roots:
             for name in Chord.recipes:
-                yield Chord(root, name)
+                yield Chord(root_note, name)
 
-    def __init__(self, root, chord_type="M"):
+    def __init__(self, root: Union[str, Note], chord_type: str = "M") -> None:
         if isinstance(root, str):
             for s in sorted(self.valid_types, key=lambda x: -len(x)):
                 if root.endswith(s):
@@ -398,13 +451,16 @@ class Chord:
         self.chord_type = chord_type
         self.notes = [root + Interval(i) for i in self.recipes[chord_type]]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "Chord({!r}, {!r})".format(self.notes[0], self.chord_type)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "{}{}".format(str(self.notes[0]), self.chord_type)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Chord):
+            raise UnsupportedOperands("==", self, other)
+
         if len(self.notes) != len(other.notes):
             # if chords dont have the same number of notes, def not equal
             return False
@@ -421,7 +477,7 @@ class Scale:
     notes or chords.
     """
 
-    scales = {
+    scales: Dict[str, List[str]] = {
         "major": ["P1", "M2", "M3", "P4", "P5", "M6", "M7"],
         "natural_minor": ["P1", "M2", "m3", "P4", "P5", "m6", "m7"],
         "harmonic_minor": ["P1", "M2", "m3", "P4", "P5", "m6", "M7"],
@@ -437,7 +493,7 @@ class Scale:
         "aeolian": ["P1", "M2", "m3", "P4", "P5", "m6", "m7"],
         "locrian": ["P1", "m2", "m3", "P4", "d5", "m6", "m7"],
     }
-    greek_modes = {
+    greek_modes: Dict[int, str] = {
         1: "ionian",
         2: "dorian",
         3: "phrygian",
@@ -449,14 +505,14 @@ class Scale:
     greek_modes_set = set(greek_modes.values())
 
     @staticmethod
-    def all(include_greek_modes=False):
+    def all(include_greek_modes: bool = False) -> Iterator["Scale"]:
         for root in Note.all():
             for name in Scale.scales:
                 if not include_greek_modes and name in Scale.greek_modes_set:
                     continue
                 yield Scale(root, name)
 
-    def __init__(self, root, name):
+    def __init__(self, root: Note, name: str) -> None:
         if isinstance(root, str):
             root = Note(root)
 
@@ -469,8 +525,17 @@ class Scale:
         self.name = name
         self.intervals = [Interval(i) for i in self.scales[name]]
         self.notes = [(root + i).to_octave(0) for i in self.intervals]
+        self.max_index: int = len(self.notes) - 1
 
-    def __getitem__(self, k):
+    @overload
+    def __getitem__(self, k: int) -> Note:
+        """Overload for dunder getitem with integer as input."""
+
+    @overload
+    def __getitem__(self, k: slice) -> List[Note]:
+        """Overload for dunder getitem with slice as input."""
+
+    def __getitem__(self, k: Union[int, slice]) -> Union[Note, List[Note]]:
         if isinstance(k, int):
             try:
                 octaves = k // len(self)
@@ -483,16 +548,16 @@ class Scale:
                 raise IndexError("Index out of range")
         elif isinstance(k, slice):
             start = k.start or 0
-            stop = k.stop or self.max_index
+            stop = k.stop
             step = k.step or 1
             return [self[i] for i in range(start, stop, step)]
         else:
             raise TypeError("Scale cannot be indexed by {}.".format(type(k)))
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.intervals)
 
-    def __contains__(self, k):
+    def __contains__(self, k: object) -> bool:
         if isinstance(k, Note):
             return k.to_octave(0) in self.notes
         elif isinstance(k, Chord):
@@ -502,8 +567,8 @@ class Scale:
         else:
             return False
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "{} {}".format(self.root, self.name)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "Scale({!r}, {!r})".format(self.root, self.name)
