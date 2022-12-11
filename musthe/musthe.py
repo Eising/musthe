@@ -9,14 +9,11 @@ Federico Ferri <federico.ferri.it@gmail.com>
 
 import re
 from typing import (
-    Any,
     Dict,
     Iterator,
     List,
-    Mapping,
     Optional,
     Sequence,
-    Set,
     Type,
     TypeVar,
     Union,
@@ -27,6 +24,8 @@ T = TypeVar("T")
 
 
 def UnsupportedOperands(op: str, type1: object, type2: object) -> Exception:
+    """Raise Type Error for unsupported operands."""
+
     def as_type(x: Union[T, Type[T]]) -> Type[T]:
         return x if isinstance(x, type) else type(x)
 
@@ -61,20 +60,25 @@ class Letter:
 
     @staticmethod
     def all() -> Iterator["Letter"]:
+        """Return iterator for all letters."""
         for name in Letter.letters:
             yield Letter(name)
 
     def __init__(self, letter: str) -> None:
+        """Initialize Letter class."""
         if letter not in self.letters_idx:
             raise ValueError("Invalid letter {!r}".format(letter))
         self.name: str = letter
         self.idx: int = self.letters_idx[letter]
 
     def __add__(self, other: int) -> "Letter":
+        """Get the note letter by adding an integer to the current letter."""
         if isinstance(other, int):
             if other == 0:
                 raise ValueError("Invalid interval number: 0")
-            new_idx = (self.idx + other - (1 if other > 0 else -1)) % len(self.letters)
+            new_idx = (self.idx + other - (1 if other > 0 else -1)) % len(
+                self.letters
+            )
             return Letter(self.letters[new_idx])
         else:
             raise UnsupportedOperands("+", self, other)
@@ -88,6 +92,7 @@ class Letter:
         """Overload for dunder sub with int as input."""
 
     def __sub__(self, other: Union[int, "Letter"]) -> Union[int, "Letter"]:
+        """Subtract either a note Letter or an integer from current Letter."""
         if isinstance(other, Letter):
             d = self.idx - other.idx
             d += 1 if d >= 0 else -1
@@ -98,21 +103,27 @@ class Letter:
             raise UnsupportedOperands("-", self, other)
 
     def __str__(self) -> str:
+        """Return string version of Letter."""
         return self.name
 
     def __repr__(self) -> str:
+        """Return the repr format of this class."""
         return "Letter({!r})".format(str(self))
 
     def __eq__(self, other: object) -> bool:
+        """Check equality."""
         return str(self) == str(other)
 
     def number(self) -> int:
+        """Return letter as number indicating the scale position."""
         return self.letters_number[self.name]
 
     def has_flat(self) -> bool:
+        """Check if this note Letter can have flat notes."""
         return self.name not in "CF"
 
     def has_sharp(self) -> bool:
+        """Check if this note letter can have sharp values."""
         return self.name not in "EB"
 
 
@@ -133,6 +144,7 @@ class Note:
 
     @staticmethod
     def all(min_octave: int = 4, max_octave: int = 4) -> Iterator["Note"]:
+        """Return an iterator containing all notes within the given octaves."""
         for octave in range(min_octave, max_octave + 1):
             for letter in Letter.all():
                 letter_accidentals = [""]
@@ -145,15 +157,18 @@ class Note:
 
     @staticmethod
     def accidental_value(acc: str) -> int:
+        """Return the modifier of the given accidental."""
         if acc == "":
             return 0
         return {"#": 1, "b": -1}[acc[0]] + Note.accidental_value(acc[1:])
 
     @staticmethod
     def accidental_str(val: int) -> str:
+        """Return the string part of an accidental based on offset."""
         return "b" * max(0, -val) + "#" * max(0, val)
 
     def __init__(self, note: str) -> None:
+        """Create Note class."""
         m = self.pattern.match(note)
         if m is None:
             raise ValueError("Could not parse the note {!r}".format(note))
@@ -169,6 +184,7 @@ class Note:
         )
 
     def __add__(self, other: object) -> "Note":
+        """Get a note that is offset by a given interval."""
         if isinstance(other, Interval):
             if other.is_compound():
                 from functools import reduce
@@ -186,7 +202,9 @@ class Note:
             if difference > 3:
                 difference -= 12
             return Note(
-                new_letter.name + Note.accidental_str(difference) + str(new_note_octave)
+                new_letter.name
+                + Note.accidental_str(difference)
+                + str(new_note_octave)
             )
         else:
             raise UnsupportedOperands("+", self, other)
@@ -199,7 +217,10 @@ class Note:
     def __sub__(self, other: "Interval") -> "Note":
         """Overload for dunder sub with Interval as input."""
 
-    def __sub__(self, other: Union["Note", "Interval"]) -> Union["Note", "Interval"]:
+    def __sub__(
+        self, other: Union["Note", "Interval"]
+    ) -> Union["Note", "Interval"]:
+        """Find a lower note or an interval between two notes."""
         if isinstance(other, Interval):
             if other.is_compound():
                 from functools import reduce
@@ -226,29 +247,56 @@ class Note:
             raise UnsupportedOperands("-", self, other)
 
     def midi_note(self) -> int:
+        """Return the midi note value."""
         return self.number + 12
 
     def frequency(self) -> float:
+        """Return the harmonic frequency of a note."""
         from math import pow
 
         return 440.0 * pow(2, (self.number - Note("A4").number) / 12.0)
 
     def to_octave(self, octave: int) -> "Note":
+        """Get a note in a different octave."""
         return Note(self.letter.name + self.accidental + str(octave))
 
+    @property
+    def enharmonic_equivalent(self) -> "Note":
+        """Return the simple enharmonic equivalent variant.
+
+        This translates E# to F, Cb to B, etc.
+        """
+        if self.accidental == "#" and self.letter.has_sharp() is False:
+            octave = self.octave
+            if str(self.letter) == "B":
+                octave += 1
+
+            return Note(f"{self.letter - 2}{octave}")
+        if self.accidental == "b" and self.letter.has_flat():
+            octave = self.octave
+            if str(self.letter) == "C":
+                octave += -1
+
+            return Note(f"{self.letter + 2}{octave}")
+
     def lilypond_notation(self) -> str:
+        """Get the note in lilypond notation."""
         return str(self).replace("b", "es").replace("#", "is").lower()
 
     def scientific_notation(self) -> str:
+        """Get the note in scientific notation."""
         return str(self) + str(self.octave)
 
     def __repr__(self) -> str:
+        """Get the class repr format."""
         return "Note({!r})".format(self.scientific_notation())
 
     def __str__(self) -> str:
+        """Get the note as a string."""
         return self.letter.name + self.accidental
 
     def __eq__(self, other: object) -> bool:
+        """Compare note with other note."""
         if isinstance(other, Note):
             return self.scientific_notation() == other.scientific_notation()
 
@@ -296,14 +344,22 @@ class Interval:
         "P8": 12,
         "A8": 13,
     }
-    quality_inverse: Dict[str, str] = {"P": "P", "d": "A", "A": "d", "m": "M", "M": "m"}
+    quality_inverse: Dict[str, str] = {
+        "P": "P",
+        "d": "A",
+        "A": "d",
+        "m": "M",
+        "M": "m",
+    }
 
     @staticmethod
     def all() -> Iterator["Interval"]:
+        """Create an iterator for all defined intervals."""
         for name in Interval.intervals:
             yield Interval(name)
 
     def __init__(self, interval: str) -> None:
+        """Create Interval class."""
         self.quality: str = interval[0]
         self.number: int = int(interval[1:])
         self.semitones: int = 0
@@ -321,12 +377,15 @@ class Interval:
             raise ValueError("Invalid interval {!r}.".format(interval))
 
     def __str__(self) -> str:
+        """Return interval as a string."""
         return self.quality + str(self.number)
 
     def __repr__(self) -> str:
+        """Return class repr format."""
         return "Interval({!r})".format(str(self))
 
     def __eq__(self, other: object) -> bool:
+        """Compare interval with other interval."""
         if isinstance(other, Interval):
             return str(self) == str(other)
         if isinstance(other, str):
@@ -334,11 +393,12 @@ class Interval:
         raise UnsupportedOperands("==", self, other)
 
     def is_compound(self) -> bool:
+        """Check if interval is a compound interval."""
         return self.number > 8
 
     def split(self) -> List["Interval"]:
-        """
-        Split a compound interval into simple intervals.
+        """Split a compound interval into simple intervals.
+
         The sum of splitted intervals is equal to the compound interval.
         """
         ret: List[Interval] = []
@@ -353,6 +413,7 @@ class Interval:
     def complement(self) -> "Interval":
         """
         Return the complement of this interval also known as inverted interval.
+
         The sum of this interval plus its complement is equal to 1 octave (P8),
         except for the case of A8, for which there is no d1 interval.
         """
@@ -414,12 +475,22 @@ class Chord:
         "+9": "aug9",
         "°9": "dim9",
     }
+
+    adds: Dict[str, str] = {
+        "4": "P4",
+        "9": "M9",
+        "11": "M2",
+    }
+
     valid_types: List[str] = list(recipes.keys()) + list(aliases.keys())
 
     @staticmethod
     def all(
-        min_octave: int = 4, max_octave: int = 4, root: Optional[RootType] = None
+        min_octave: int = 4,
+        max_octave: int = 4,
+        root: Optional[RootType] = None,
     ) -> Iterator["Chord"]:
+        """Return an iterator over all known chord types."""
         roots: Union[Iterator[Note], Sequence[Note]]
         if root is None:
             roots = Note.all()
@@ -434,7 +505,12 @@ class Chord:
                 yield Chord(root_note, name)
 
     def __init__(self, root: Union[str, Note], chord_type: str = "M") -> None:
+        """Create Chord class."""
+        add: Optional[str] = None
+
         if isinstance(root, str):
+            if "add" in root:
+                root, add = root.split("add")
             for s in sorted(self.valid_types, key=lambda x: -len(x)):
                 if root.endswith(s):
                     chord_type = s
@@ -443,21 +519,59 @@ class Chord:
             if not isinstance(root, Note):
                 raise ValueError("Invalid chord: {!r}".format(root))
 
+        if "add" in chord_type:
+            chord_type, add = chord_type.split("add")
+
         if chord_type in self.aliases:
             chord_type = self.aliases[chord_type]
         if chord_type not in self.recipes.keys():
             raise ValueError("Invalid chord type: {}.".format(chord_type))
 
         self.chord_type = chord_type
-        self.notes = [root + Interval(i) for i in self.recipes[chord_type]]
+        self.root = root
+
+        self.add = add
+
+    @property
+    def notes(self) -> List[Note]:
+        """Return notes in the chord."""
+        notes = [
+            self.root + Interval(i) for i in self.recipes[self.chord_type]
+        ]
+
+        if self.add is None:
+            return notes
+
+        add = self.add
+        chord_type = self.chord_type
+        root = self.root
+        if add not in self.adds:
+            raise ValueError(f"Unknown chord type: {chord_type}add{add}")
+        add_interval = self.adds[add]
+        extra_note = root + Interval(add_interval)
+
+        notes.append(extra_note)
+        return sorted(notes, key=lambda x: x.frequency())
+
+    @property
+    def simplified_notes(self) -> List[Note]:
+        """Return notes in the chord.
+
+        All enharmonic variants of notes will use the simplest form
+        e.g., E# will be return as F.
+        """
+        return [note.enharmonic_equivalent for note in self.notes]
 
     def __repr__(self) -> str:
+        """Return chord class repr."""
         return "Chord({!r}, {!r})".format(self.notes[0], self.chord_type)
 
     def __str__(self) -> str:
+        """Return chord as string."""
         return "{}{}".format(str(self.notes[0]), self.chord_type)
 
     def __eq__(self, other: object) -> bool:
+        """Compare chord instance with another chord."""
         if not isinstance(other, Chord):
             raise UnsupportedOperands("==", self, other)
 
@@ -465,7 +579,9 @@ class Chord:
             # if chords dont have the same number of notes, def not equal
             return False
         else:
-            return all(self.notes[i] == other.notes[i] for i in range(len(self.notes)))
+            return all(
+                self.notes[i] == other.notes[i] for i in range(len(self.notes))
+            )
 
 
 class Scale:
@@ -506,6 +622,7 @@ class Scale:
 
     @staticmethod
     def all(include_greek_modes: bool = False) -> Iterator["Scale"]:
+        """Create an iterator that returns all scales."""
         for root in Note.all():
             for name in Scale.scales:
                 if not include_greek_modes and name in Scale.greek_modes_set:
@@ -513,6 +630,7 @@ class Scale:
                 yield Scale(root, name)
 
     def __init__(self, root: Note, name: str) -> None:
+        """Create Scale class instance."""
         if isinstance(root, str):
             root = Note(root)
 
@@ -536,6 +654,7 @@ class Scale:
         """Overload for dunder getitem with slice as input."""
 
     def __getitem__(self, k: Union[int, slice]) -> Union[Note, List[Note]]:
+        """Get an element from the scale at a given index."""
         if isinstance(k, int):
             try:
                 octaves = k // len(self)
@@ -555,9 +674,11 @@ class Scale:
             raise TypeError("Scale cannot be indexed by {}.".format(type(k)))
 
     def __len__(self) -> int:
+        """Return the amount of notes in the Scale."""
         return len(self.intervals)
 
     def __contains__(self, k: object) -> bool:
+        """Check if a scale contains a certain note or notes."""
         if isinstance(k, Note):
             return k.to_octave(0) in self.notes
         elif isinstance(k, Chord):
@@ -568,7 +689,9 @@ class Scale:
             return False
 
     def __str__(self) -> str:
+        """Return scale as string."""
         return "{} {}".format(self.root, self.name)
 
     def __repr__(self) -> str:
+        """Return class repr format."""
         return "Scale({!r}, {!r})".format(self.root, self.name)
